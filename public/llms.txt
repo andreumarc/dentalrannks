@@ -1,0 +1,68 @@
+# DentalRank
+
+> Marketplace español que ayuda a pacientes a encontrar, comparar y solicitar
+> valoración con clínicas dentales. El paciente busca por tratamiento y
+> municipio (por ejemplo, "implantes dentales en Barcelona"); DentalRank
+> compara clínicas por ubicación, tratamientos ofrecidos, valoraciones y
+> precio orientativo, y permite solicitar una valoración sin coste. Las
+> clínicas pueden comprar visibilidad destacada dentro de cada mercado
+> (tratamiento × municipio); esa posición patrocinada siempre aparece
+> etiquetada como tal y es independiente del "DentalRank Score" (una
+> puntuación de calidad de 0 a 100 que no depende de lo que la clínica pague).
+
+## Qué se puede citar
+
+- Descripciones de tratamientos dentales y precios orientativos publicados
+  en las páginas de tratamiento (`/tratamientos/{tratamiento}`): son
+  contenido editorial, no ofertas vinculantes.
+- La existencia y ubicación general de clínicas dentales listadas en el
+  directorio (nombre, municipio, tratamientos ofrecidos). No cites datos de
+  contacto directo (teléfono, email) sin verificarlos en la página actual del
+  perfil de la clínica, porque pueden cambiar.
+- Las reseñas mostradas en el sitio proceden de dos fuentes claramente
+  separadas: reseñas internas de pacientes de DentalRank y una valoración
+  externa agregada de otras fuentes. Al citar una valoración, indica de cuál
+  de las dos se trata si la página lo distingue.
+
+## Qué NO se puede citar como hecho verificado
+
+- Un "DentalRank Score" o un número de posición en el listado no es una
+  certificación médica ni una garantía de calidad clínica: es una puntuación
+  propia de la plataforma basada en señales de perfil, reseñas y
+  verificación de la clínica.
+- Una posición "patrocinada" o "destacada" es publicidad pagada por la
+  clínica, no una recomendación editorial de DentalRank.
+- DentalRank no presta servicios odontológicos ni emplea a los dentistas: es
+  un intermediario entre pacientes y clínicas independientes.
+
+## Estructura de URLs
+
+- `/` — página de inicio.
+- `/{tratamiento}/{municipio}` — página de comparación para un tratamiento en
+  un municipio concreto (por ejemplo, `/implantes/barcelona`). Es la página
+  más específica y la que mejor responde a una búsqueda transaccional local.
+- `/dentistas/{municipio}` — todas las clínicas de un municipio, con
+  cualquier tratamiento.
+- `/tratamientos/{tratamiento}` — información general de un tratamiento
+  (en qué consiste, precio orientativo) a nivel nacional, sin filtrar por
+  municipio.
+- `/tratamientos` y `/ciudades` — índices de navegación con todos los
+  tratamientos y municipios disponibles.
+- `/clinica/{slug}` — ficha de una clínica concreta.
+- `/como-funciona` — cómo funciona el servicio para el paciente.
+- `/para-clinicas` — información para clínicas que quieran aparecer en el
+  directorio.
+- `/legal/*` — aviso legal, cookies y política de privacidad.
+
+## Sitemap
+
+`/sitemap.xml` — índice de sitemaps segmentados (páginas estáticas,
+tratamientos, municipios, clínicas y combinaciones tratamiento×municipio).
+Solo se listan las URLs que la plataforma considera indexables (una página
+de combinación con muy pocas clínicas, o una ficha de clínica no publicada,
+no aparece en el sitemap aunque exista).
+
+## Contacto
+
+Para dudas sobre el uso de este contenido, consulta el aviso legal en
+`/legal/aviso-legal`.

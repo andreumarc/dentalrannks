@@ -1,0 +1,856 @@
+// DentalRank — esquema de datos
+// Reglas: todo el dinero se guarda en enteros de céntimos de euro (Int/BigInt), nunca Float.
+//         Las posiciones patrocinadas se calculan siempre en servidor.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identidad y organizaciones
+// ---------------------------------------------------------------------------
+
+enum GlobalRole {
+  SUPER_ADMIN
+  USER
+}
+
+enum OrgRole {
+  CLINIC_ADMIN
+  CLINIC_USER
+}
+
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  email         String     @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          GlobalRole @default(USER)
+  phone         String?
+  active        Boolean    @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  accounts        Account[]
+  sessions        Session[]
+  memberships     OrganizationUser[]
+  auditLogs       AuditLog[]
+  assignedLeads   Lead[]             @relation("LeadAssignee")
+  leadEvents      LeadEvent[]
+  invitationsSent Invitation[]       @relation("InvitationInviter")
+
+  @@index([role])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+/// Una empresa o grupo dental. Puede gestionar varias clínicas.
+model Organization {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  legalName      String?
+  taxId          String? // CIF/NIF
+  billingEmail   String?
+  billingAddress String?
+  phone          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  members     OrganizationUser[]
+  clinics     Clinic[]
+  invitations Invitation[]
+}
+
+model OrganizationUser {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrgRole  @default(CLINIC_USER)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model Invitation {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String
+  role           OrgRole   @default(CLINIC_USER)
+  token          String    @unique
+  invitedById    String?
+  acceptedAt     DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User?        @relation("InvitationInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+// ---------------------------------------------------------------------------
+// Geografía: España → Comunidad Autónoma → Provincia → Municipio
+// ---------------------------------------------------------------------------
+
+model Region {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  code      String?    @unique
+  provinces Province[]
+}
+
+model Province {
+  id       String  @id @default(cuid())
+  name     String
+  slug     String  @unique
+  code     String? @unique
+  regionId String
+  region   Region  @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  cities   City[]
+
+  @@index([regionId])
+}
+
+/// Municipio. Unidad geográfica principal de competición.
+model City {
+  id         String  @id @default(cuid())
+  name       String
+  slug       String  @unique
+  postalCode String?
+  ineCode    String? @unique
+  lat        Float
+  lng        Float
+  population Int?
+  featured   Boolean @default(false)
+  provinceId String
+
+  province Province @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+
+  clinics       Clinic[]
+  markets       AuctionMarket[]
+  neighborhoods Neighborhood[]
+  leads         Lead[]
+  clicks        Click[]
+
+  @@index([provinceId])
+  @@index([featured])
+}
+
+/// Preparado para segmentación por barrio en el futuro.
+model Neighborhood {
+  id     String @id @default(cuid())
+  name   String
+  slug   String
+  cityId String
+  city   City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@unique([cityId, slug])
+}
+
+// ---------------------------------------------------------------------------
+// Taxonomía de tratamientos
+// ---------------------------------------------------------------------------
+
+model TreatmentCategory {
+  id         String      @id @default(cuid())
+  name       String
+  slug       String      @unique
+  order      Int         @default(0)
+  icon       String?
+  treatments Treatment[]
+}
+
+model Treatment {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  shortName   String?
+  description String?
+  seoTitle    String?
+  seoBody     String?
+  order       Int     @default(0)
+  featured    Boolean @default(false)
+  categoryId  String
+
+  category         TreatmentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  clinicTreatments ClinicTreatment[]
+  markets          AuctionMarket[]
+  leads            Lead[]
+  clicks           Click[]
+
+  @@index([categoryId])
+  @@index([featured])
+}
+
+// ---------------------------------------------------------------------------
+// Clínicas
+// ---------------------------------------------------------------------------
+
+enum ClinicStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  SUSPENDED
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model Clinic {
+  id             String @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String @unique
+
+  // Datos de contacto y ubicación
+  legalName  String?
+  taxId      String?
+  address    String
+  postalCode String
+  cityId     String
+  lat        Float
+  lng        Float
+  phone      String
+  whatsapp   String?
+  email      String?
+  website    String?
+
+  // Contenido de ficha
+  tagline        String?
+  description    String?  @db.Text
+  logoUrl        String?
+  coverUrl       String?
+  scheduleJson   Json? // { mon: [["09:00","14:00"]], ... }
+  languages      String[] @default([])
+  facilities     String[] @default([])
+  diagnostics    String[] @default([])
+  financing      Boolean  @default(false)
+  financingNote  String?
+  firstVisitFree Boolean  @default(false)
+  emergency24h   Boolean  @default(false)
+  parking        Boolean  @default(false)
+  accessible     Boolean  @default(false)
+
+  // Estado
+  status             ClinicStatus       @default(DRAFT)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  verifiedAt         DateTime?
+  publishedAt        DateTime?
+
+  // Señales de calidad (nunca dependen del dinero pagado)
+  externalRating      Float? // media agregada de fuentes externas autorizadas
+  externalReviewCount Int       @default(0)
+  externalSource      String?
+  internalRating      Float?
+  internalReviewCount Int       @default(0)
+  avgResponseMinutes  Int?
+  profileCompleteness Int       @default(0) // 0-100
+  dentalRankScore     Int       @default(0) // 0-100, editorial/data-driven
+  scoreComputedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  city         City         @relation(fields: [cityId], references: [id])
+
+  treatments   ClinicTreatment[]
+  images       ClinicImage[]
+  team         TeamMember[]
+  bids         Bid[]
+  positions    SponsoredPosition[]
+  clicks       Click[]
+  leads        Lead[]
+  reviews      Review[]
+  wallet       Wallet?
+  payments     Payment[]
+  budget       ClinicBudget?
+  transactions WalletTransaction[]
+
+  @@index([organizationId])
+  @@index([cityId])
+  @@index([status])
+  @@index([dentalRankScore])
+}
+
+model ClinicImage {
+  id       String  @id @default(cuid())
+  clinicId String
+  url      String
+  alt      String?
+  order    Int     @default(0)
+  clinic   Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+}
+
+model TeamMember {
+  id           String  @id @default(cuid())
+  clinicId     String
+  name         String
+  role         String?
+  collegiateNo String? // nº de colegiado (solo si la clínica lo aporta)
+  bio          String?
+  photoUrl     String?
+  order        Int     @default(0)
+  clinic       Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+}
+
+model ClinicTreatment {
+  id             String  @id @default(cuid())
+  clinicId       String
+  treatmentId    String
+  priceFromCents Int?
+  priceNote      String?
+  description    String?
+  featured       Boolean @default(false)
+
+  clinic    Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  treatment Treatment @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, treatmentId])
+  @@index([treatmentId])
+}
+
+// ---------------------------------------------------------------------------
+// Mercados de subasta: (tratamiento × municipio)
+// ---------------------------------------------------------------------------
+
+enum MarketStatus {
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+/// Modelos de monetización soportados por la arquitectura.
+enum PricingModel {
+  BALANCE // Modelo A: ranking por saldo comprometido
+  CPC // Modelo B: coste por clic
+  CPL // Modelo C: coste por lead válido
+}
+
+model AuctionMarket {
+  id                String       @id @default(cuid())
+  treatmentId       String
+  cityId            String
+  status            MarketStatus @default(ACTIVE)
+  pricingModel      PricingModel @default(BALANCE)
+  minimumBidCents   Int          @default(5000)
+  bidIncrementCents Int          @default(1000)
+  sponsoredSlots    Int          @default(3)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  treatment Treatment @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+  city      City      @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  bids      Bid[]
+  positions SponsoredPosition[]
+  clicks    Click[]
+  leads     Lead[]
+
+  @@unique([treatmentId, cityId])
+  @@index([status])
+  @@index([cityId])
+}
+
+enum BidStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  DEPLETED
+}
+
+model Bid {
+  id       String @id @default(cuid())
+  marketId String
+  clinicId String
+
+  /// Importe comprometido total en el mercado (modelo A).
+  amountCents Int  @default(0)
+  /// Puja máxima por clic (modelo B).
+  maxCpcCents Int?
+  /// Importe pagado por lead válido (modelo C).
+  cplCents    Int?
+
+  status BidStatus @default(ACTIVE)
+
+  /// Momento en que se alcanzó el importe actual. Desempata a favor de quien llegó antes.
+  reachedAmountAt DateTime @default(now())
+
+  spentCents Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  market    AuctionMarket       @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  clinic    Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  positions SponsoredPosition[]
+  history   BidHistory[]
+
+  @@unique([marketId, clinicId])
+  @@index([marketId, status, amountCents])
+  @@index([clinicId])
+}
+
+model BidHistory {
+  id              String   @id @default(cuid())
+  bidId           String
+  fromAmountCents Int
+  toAmountCents   Int
+  reason          String?
+  createdAt       DateTime @default(now())
+  bid             Bid      @relation(fields: [bidId], references: [id], onDelete: Cascade)
+
+  @@index([bidId])
+}
+
+/// Instantánea de la posición patrocinada calculada en servidor.
+model SponsoredPosition {
+  id          String   @id @default(cuid())
+  marketId    String
+  clinicId    String
+  bidId       String
+  position    Int
+  amountCents Int
+  computedAt  DateTime @default(now())
+
+  market AuctionMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  clinic Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  bid    Bid           @relation(fields: [bidId], references: [id], onDelete: Cascade)
+
+  @@unique([marketId, position])
+  @@unique([marketId, clinicId])
+  @@index([clinicId])
+}
+
+/// Presupuesto y límites por clínica (base para el motor de pujas futuro).
+model ClinicBudget {
+  id                 String       @id @default(cuid())
+  clinicId           String       @unique
+  monthlyBudgetCents Int          @default(0)
+  dailyCapCents      Int?
+  defaultModel       PricingModel @default(BALANCE)
+  maxCpcCents        Int?
+  targetCplCents     Int?
+  autoDistribute     Boolean      @default(false)
+  updatedAt          DateTime     @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Tracking de clics
+// ---------------------------------------------------------------------------
+
+enum ClickType {
+  PROFILE
+  PHONE
+  WHATSAPP
+  WEBSITE
+  DIRECTIONS
+  LEAD_FORM_OPEN
+}
+
+model Click {
+  id          String    @id @default(cuid())
+  clinicId    String
+  marketId    String?
+  treatmentId String?
+  cityId      String?
+  type        ClickType @default(PROFILE)
+  position    Int?
+  sponsored   Boolean   @default(false)
+
+  costCents     Int     @default(0)
+  billed        Boolean @default(false)
+  valid         Boolean @default(true)
+  invalidReason String?
+
+  ipHash      String?
+  userAgent   String?
+  referrer    String?
+  sessionId   String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+
+  createdAt DateTime @default(now())
+
+  clinic    Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  market    AuctionMarket? @relation(fields: [marketId], references: [id], onDelete: SetNull)
+  treatment Treatment?     @relation(fields: [treatmentId], references: [id], onDelete: SetNull)
+  city      City?          @relation(fields: [cityId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, createdAt])
+  @@index([marketId, createdAt])
+  @@index([ipHash, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Leads
+// ---------------------------------------------------------------------------
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  APPOINTMENT
+  ATTENDED
+  BUDGET
+  ACCEPTED
+  LOST
+}
+
+enum LeadQuality {
+  UNREVIEWED
+  VALID
+  INVALID
+  DUPLICATE
+  SPAM
+}
+
+enum LeadSource {
+  SEARCH_RESULTS
+  CLINIC_PROFILE
+  CITY_PAGE
+  HOMEPAGE
+  DIRECT
+  IMPORT
+}
+
+model Lead {
+  id          String  @id @default(cuid())
+  clinicId    String
+  marketId    String?
+  treatmentId String?
+  cityId      String?
+
+  name           String
+  phone          String
+  email          String
+  postalCode     String?
+  timePreference String?
+  comment        String? @db.Text
+
+  status  LeadStatus  @default(NEW)
+  quality LeadQuality @default(UNREVIEWED)
+  source  LeadSource  @default(SEARCH_RESULTS)
+
+  priceCents Int     @default(0) // importe cobrado a la clínica por este lead (modelo CPL)
+  billed     Boolean @default(false)
+
+  assignedToId  String?
+  lastContactAt DateTime?
+  closedAt      DateTime?
+  lostReason    String?
+
+  ipHash        String?
+  userAgent     String?
+  referrer      String?
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  duplicateOfId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic     Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  market     AuctionMarket? @relation(fields: [marketId], references: [id], onDelete: SetNull)
+  treatment  Treatment?     @relation(fields: [treatmentId], references: [id], onDelete: SetNull)
+  city       City?          @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  assignedTo User?          @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  events   LeadEvent[]
+  consents Consent[]
+  notes    LeadNote[]
+
+  @@index([clinicId, status])
+  @@index([clinicId, createdAt])
+  @@index([phone])
+  @@index([email])
+  @@index([quality])
+}
+
+enum LeadEventType {
+  CREATED
+  STATUS_CHANGED
+  ASSIGNED
+  NOTE_ADDED
+  CONTACT_ATTEMPT
+  EXPORTED
+  QUALITY_REVIEWED
+}
+
+model LeadEvent {
+  id         String        @id @default(cuid())
+  leadId     String
+  type       LeadEventType
+  fromStatus LeadStatus?
+  toStatus   LeadStatus?
+  message    String?
+  userId     String?
+  createdAt  DateTime      @default(now())
+
+  lead Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt])
+}
+
+model LeadNote {
+  id        String   @id @default(cuid())
+  leadId    String
+  body      String   @db.Text
+  authorId  String?
+  createdAt DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+}
+
+enum ConsentType {
+  DATA_SHARING // envío de datos a la clínica seleccionada
+  MARKETING // comunicaciones comerciales de DentalRank
+}
+
+model Consent {
+  id        String      @id @default(cuid())
+  leadId    String?
+  type      ConsentType
+  granted   Boolean
+  version   String
+  text      String      @db.Text
+  source    String
+  ipHash    String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([type, version])
+}
+
+// ---------------------------------------------------------------------------
+// Reseñas
+// ---------------------------------------------------------------------------
+
+enum ReviewSource {
+  INTERNAL
+  EXTERNAL_API
+}
+
+enum ReviewStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+model Review {
+  id              String       @id @default(cuid())
+  clinicId        String
+  source          ReviewSource @default(INTERNAL)
+  externalId      String?
+  authorName      String
+  rating          Int
+  title           String?
+  body            String?      @db.Text
+  treatment       String?
+  status          ReviewStatus @default(PENDING)
+  verifiedPatient Boolean      @default(false)
+  publishedAt     DateTime?
+  createdAt       DateTime     @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([source, externalId])
+  @@index([clinicId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Dinero: wallet, ledger y pagos
+// ---------------------------------------------------------------------------
+
+model Wallet {
+  id                       String   @id @default(cuid())
+  clinicId                 String   @unique
+  balanceCents             Int      @default(0) // caché derivada del ledger, nunca la fuente de verdad
+  currency                 String   @default("EUR")
+  lowBalanceThresholdCents Int      @default(5000)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+}
+
+enum LedgerEntryType {
+  CREDIT
+  DEBIT
+  REFUND
+  ADJUSTMENT
+}
+
+enum LedgerReason {
+  TOPUP
+  CLICK
+  LEAD
+  SPONSORSHIP
+  MANUAL
+  CHARGEBACK
+  PROMO
+}
+
+/// Libro mayor. Fuente de verdad del saldo. Solo se escribe en servidor.
+model WalletTransaction {
+  id                String          @id @default(cuid())
+  clinicId          String
+  type              LedgerEntryType
+  reason            LedgerReason    @default(MANUAL)
+  /// Positivo para CREDIT/REFUND, negativo para DEBIT. Siempre en céntimos.
+  amountCents       Int
+  balanceAfterCents Int
+  currency          String          @default("EUR")
+
+  reference      String? // id externo: payment intent, click, lead...
+  idempotencyKey String? @unique
+  description    String?
+  createdById    String?
+
+  createdAt DateTime @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, createdAt])
+  @@index([reason])
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  clinicId    String
+  amountCents Int
+  currency    String        @default("EUR")
+  status      PaymentStatus @default(PENDING)
+
+  provider              String  @default("stripe")
+  stripeSessionId       String? @unique
+  stripePaymentIntentId String? @unique
+  receiptUrl            String?
+  failureReason         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, createdAt])
+}
+
+/// Idempotencia de webhooks de Stripe.
+model StripeEvent {
+  id          String   @id // el id del evento de Stripe
+  type        String
+  processedAt DateTime @default(now())
+  payloadHash String?
+}
+
+// ---------------------------------------------------------------------------
+// Auditoría
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String // clinic.updated, bid.created, payment.received, lead.exported, user.invited
+  entity     String
+  entityId   String?
+  metadata   Json?
+  ipHash     String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+  @@index([entity, entityId])
+  @@index([actorId])
+}
+
+/// Limitación de peticiones persistente (formularios públicos y endpoints sensibles).
+model RateLimitHit {
+  id        String   @id @default(cuid())
+  bucket    String
+  key       String
+  count     Int      @default(1)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([bucket, key])
+  @@index([expiresAt])
+}

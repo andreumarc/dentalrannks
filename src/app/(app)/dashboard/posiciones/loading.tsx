@@ -1,0 +1,14 @@
+import { Skeleton } from "@/components/ui/states";
+
+export default function Loading() {
+  return (
+    <div className="flex flex-col gap-6">
+      <Skeleton className="h-8 w-72" />
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Skeleton className="h-64" />
+        <Skeleton className="h-64" />
+      </div>
+      <Skeleton className="h-48" />
+    </div>
+  );
+}

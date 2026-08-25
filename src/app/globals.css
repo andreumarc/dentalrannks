@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/* =========================================================================
+   DentalRank — sistema visual
+   Identidad heredada de Impulsodent Consulting:
+   cian #01ADD0 sobre antracita #393F42, Exo 2 + Outfit + IBM Plex Mono,
+   titulares en caja alta, geometría recta de 6 px.
+   ========================================================================= */
+
+@theme {
+  --color-cyan-brand: #01ADD0;
+  --color-cyan-deep: #0189A5;
+  --color-cyan-tint: #E7F7FC;
+  --color-cyan-soft: #78D9EF;
+  --color-anthracite: #393F42;
+  --color-anthracite-light: #434A4D;
+  --color-ink: #22272A;
+  --color-mist: #F5F8F9;
+  --color-line: #E2E8EA;
+  --color-grey: #6B7478;
+  --color-grey-light: #9BA6AA;
+  --color-grey-soft: #C5CED1;
+  --color-positive: #0FA47F;
+  --color-positive-tint: #E6F6F1;
+  --color-negative: #D4574A;
+  --color-negative-tint: #FBEDEB;
+  --color-warning: #C8892B;
+  --color-warning-tint: #FBF3E6;
+
+  --font-display: var(--font-exo2), "Exo 2", system-ui, sans-serif;
+  --font-sans: var(--font-outfit), Outfit, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius-brand: 6px;
+
+  --shadow-card: 0 20px 40px -26px rgba(34, 39, 42, 0.45);
+  --shadow-panel: 0 18px 40px -30px rgba(34, 39, 42, 0.5);
+  --shadow-drop: 0 18px 40px -22px rgba(34, 39, 42, 0.4);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 96px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    background: #fff;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 16.5px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    line-height: 1.15;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  ::selection {
+    background: var(--color-cyan-brand);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-cyan-brand);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Etiqueta monoespaciada en caja alta, marca de la casa. */
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-cyan-deep);
+  }
+
+  .kicker-muted {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-grey);
+  }
+
+  .display-h1 {
+    font-family: var(--font-display);
+    font-size: clamp(29px, 4.4vw, 50px);
+    text-transform: uppercase;
+    line-height: 1.08;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .display-h2 {
+    font-family: var(--font-display);
+    font-size: clamp(25px, 3.4vw, 39px);
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    line-height: 1.12;
+    font-weight: 600;
+  }
+
+  .display-h3 {
+    font-family: var(--font-display);
+    font-size: clamp(18px, 2vw, 22px);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  .accent em,
+  .accent-cyan {
+    font-style: normal;
+    color: var(--color-cyan-brand);
+  }
+
+  .wrap {
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: clamp(18px, 4.5vw, 56px);
+  }
+
+  .wrap-wide {
+    max-width: 1440px;
+    margin-inline: auto;
+    padding-inline: clamp(18px, 3.5vw, 40px);
+  }
+
+  .section {
+    padding-block: clamp(52px, 7vw, 94px);
+  }
+
+  .grid-lines {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.09) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  .hero-gradient {
+    background: radial-gradient(900px 460px at 78% 18%, rgba(1, 173, 208, 0.34), transparent 62%),
+      radial-gradient(700px 500px at 8% 92%, rgba(1, 173, 208, 0.16), transparent 60%),
+      linear-gradient(160deg, #2f3538, #393f42 55%, #2a2f32);
+  }
+
+  /* Variante semitransparente del degradado de marca, para usar encima de una
+     fotografía de fondo (hero de home) manteniendo el mismo lenguaje visual. */
+  .hero-gradient-photo {
+    background: radial-gradient(900px 460px at 78% 18%, rgba(1, 173, 208, 0.3), transparent 62%),
+      radial-gradient(700px 500px at 8% 92%, rgba(1, 173, 208, 0.14), transparent 60%),
+      linear-gradient(160deg, rgba(47, 53, 56, 0.86), rgba(57, 63, 66, 0.8) 55%, rgba(42, 47, 50, 0.88));
+  }
+
+  .panel-shadow {
+    box-shadow: var(--shadow-panel);
+  }
+}
+
+/* Barra de scroll discreta en tablas y paneles */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
